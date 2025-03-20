@@ -53,8 +53,7 @@ export class PseudoCart {
             return;
         }
         const m = Object.assign(Object.assign({}, n), { count: c });
-        (this.items = this.items.map((r) => (r.key === n.key ? m : n))),
-            (this.items = [...this.items]),
+        (this.items = this.items.map((r) => (r.key === n.key ? m : r))),
             this.dispatchEvent("#" + n.key, m),
             this.dispatchEvent("itemchange", n);
     }
