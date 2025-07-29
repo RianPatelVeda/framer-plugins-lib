@@ -12,11 +12,15 @@ export class PseudoCart {
     }
 
     removeListener(e, t) {
-        this.listeners[e] = this.listeners[e]?.filter((i) => i !== t) || [];
+        if (this.listeners[e]) {
+            this.listeners[e] = this.listeners[e].filter((i) => i !== t);
+        }
     }
 
     dispatchEvent(e, t) {
-        if (this.listeners[e]) for (const i of this.listeners[e]) i(t);
+        if (this.listeners[e]) {
+            for (const i of this.listeners[e]) i(t);
+        }
     }
 
     get items() {
@@ -35,38 +39,35 @@ export class PseudoCart {
         }
     }
 
+    _getPriceForQuantity(item, quantity) {
+        const { moq, price1, qty2, price2, qty3, price3 } = item;
+
+        if (!moq || !price1) return item.price || 0;
+
+        const q = parseInt(quantity);
+        const m = parseInt(moq);
+        const q2 = parseInt(qty2);
+        const p2 = parseFloat(price2);
+        const q3 = parseInt(qty3);
+        const p3 = parseFloat(price3);
+        const p1 = parseFloat(price1);
+
+        if (q >= q3 && q3 > 0) return p3;
+        if (q >= q2 && q2 > 0) return p2;
+        return p1;
+    }
+
+    getItemTotal(item) {
+        const price = this._getPriceForQuantity(item, item.count || 1);
+        return price * (item.count || 1);
+    }
+
     addItem(e) {
-        const index = this.items.findIndex((i) => i.key === e.key);
-        if (index === -1) {
-            // Add subtotal and base price
-            const startingCount = e.count || 1;
-            const moq = parseInt(e.moq || "1");
-            const qty2 = parseInt(e.qty2 || "0");
-            const qty3 = parseInt(e.qty3 || "0");
-            const price1 = parseFloat(e.price1 || "0");
-            const price2 = parseFloat(e.price2 || "0");
-            const price3 = parseFloat(e.price3 || "0");
-
-            let unitPrice = price1;
-            if (qty3 && startingCount >= qty3) unitPrice = price3;
-            else if (qty2 && startingCount >= qty2) unitPrice = price2;
-
-            const newItem = {
-                ...e,
-                count: startingCount,
-                moq,
-                qty2,
-                qty3,
-                price1,
-                price2,
-                price3,
-                price: unitPrice,
-                subtotal: startingCount * unitPrice,
-            };
-
-            this.items = [...this.items, newItem];
-            this.dispatchEvent("itemschange", this.items);
+        const existingIndex = this.items.findIndex((i) => i.key === e.key);
+        if (existingIndex === -1) {
+            this.items = [...this.items, e];
         }
+        this.dispatchEvent("itemschange", this.items);
     }
 
     removeItem(e) {
@@ -94,27 +95,16 @@ export class PseudoCart {
             return;
         }
 
-        // 🧠 Dynamic Pricing Logic
-        const { moq = 1, price1 = 0, qty2 = 0, price2 = 0, qty3 = 0, price3 = 0 } = n;
-        let dynamicPrice = price1;
-
-        if (qty3 && newCount >= qty3) {
-            dynamicPrice = price3;
-        } else if (qty2 && newCount >= qty2) {
-            dynamicPrice = price2;
-        }
-
-        const updatedItem = {
+        const updated = {
             ...n,
             count: newCount,
-            price: dynamicPrice,
-            subtotal: newCount * dynamicPrice,
+            dynamicPrice: this._getPriceForQuantity(n, newCount),
         };
 
-        this.items = this.items.map((r) => (r.key === n.key ? updatedItem : r));
-        this.dispatchEvent("#" + n.key, updatedItem);
-        this.dispatchEvent("itemchange", updatedItem);
-        this.dispatchEvent("itemschange", this.items);
+        this.items = this.items.map((r) => (r.key === n.key ? updated : r));
+
+        this.dispatchEvent("#" + n.key, updated);
+        this.dispatchEvent("itemchange", updated);
     }
 
     clear() {
@@ -123,7 +113,7 @@ export class PseudoCart {
     }
 
     static get Instance() {
-        return PseudoCart.e || (PseudoCart.e = new PseudoCart()), this.e;
+        return this.e || (this.e = new PseudoCart()), this.e;
     }
 }
 
@@ -136,7 +126,7 @@ export const PseudoFunc = {
 
     findDataKey: (s) => {
         const e = PseudoFunc.findElement(s);
-        return e?.dataset.cartKey;
+        if (e) return e.dataset.cartKey;
     },
 
     findCartItem: (s) => {
@@ -157,7 +147,7 @@ export const PseudoFunc = {
         a(() => {
             if (!PseudoFunc.getInCanvas()) {
                 PseudoCart.Instance.addListener("itemschange", s);
-                e && s(PseudoCart.Instance.items);
+                if (e) s(PseudoCart.Instance.items);
                 return () => {
                     PseudoCart.Instance.removeListener("itemschange", s);
                 };
@@ -169,7 +159,7 @@ export const PseudoFunc = {
         a(() => {
             if (!PseudoFunc.getInCanvas()) {
                 PseudoCart.Instance.addListener("itemchange", s);
-                e && s(PseudoCart.Instance.items);
+                if (e) s(PseudoCart.Instance.items);
                 return () => {
                     PseudoCart.Instance.removeListener("itemchange", s);
                 };
@@ -195,6 +185,6 @@ export default function h(s) {
     return (
         (window.PseudoCart = PseudoCart),
         (window.PseudoFunc = PseudoFunc),
-        (e) => React.createElement(s, { ...e })
+        (e) => React.createElement(s, Object.assign({}, e))
     );
 }
